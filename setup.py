@@ -17,7 +17,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "importOpenAPI=sep_tools.importOAS:cmdImportOpenAPI",
+            "importOpenAPI=sep_tools.cmd:cmdImportOpenAPI",
         ]
     },
 )
