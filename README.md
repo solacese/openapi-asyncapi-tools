@@ -4,7 +4,7 @@ Tooling to assist with exchange of information between API Portal and Event Port
 
 ## Installation
 
-Clone this repe then install the package locally with:
+Clone this repo then install the package locally with:
 
 ```bash
 $ pip install .
