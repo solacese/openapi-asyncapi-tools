@@ -31,23 +31,24 @@ class EventPortal:
 
     def importOpenAPISpec(self, spec_path, domain, application):
         self.spec_path = spec_path
-
+        self.domainName = domain
+        self.appName = application
         self.ApplicationDomains[domain]={
             "payload":{
                 "name": domain,
+                "enforceUniqueTopicNames": True,
+                "topicDomain": "",
             }
         }
-
         self.Applications[application]={
             "payload":{
                 "name": application,
             }
         }
-
         
         with open(spec_path) as f:
             text_context = f.read()
-            self.spec = yaml.load(text_context)
+            self.spec = yaml.safe_load(text_context)
 
         version = self.spec.get("openapi")
         if not version:
@@ -58,16 +59,9 @@ class EventPortal:
             logging.error("The open api version of '{}' is {}, must be 3.x.".format(spec_path, version))
             raise SystemExit
 
-        self.ApplicationDomain = {
-            "name": domain
-        }
-
-        self.Application = {
-            "name": application
-        }
-
         self.generate_ep_objects()
         self.check_duplicated_objects()
+        self.create_all_objects()
         
 
     def generate_ep_objects(self):
@@ -140,28 +134,87 @@ class EventPortal:
 
     def check_duplicated_objects(self):
         to_check = {
-            "/api/v1/eventPortal/applicationDomains": self.ApplicationDomains,
-            "/api/v1/eventPortal/applications": self.Applications,
-            "/api/v1/eventPortal/schemas": self.Schemas,
-            "/api/v1/eventPortal/events": self.Events,
+            "applicationDomains": self.ApplicationDomains,
+            "applications": self.Applications,
+            "schemas": self.Schemas,
+            "events": self.Events,
         }
 
         logging.info("Checking duplicated objects ...")
-        for coll_name, coll_obj in to_check.items():
-            coll_url = self._base_url+coll_name
-            for obj_name in coll_obj.keys():
+        for coll_name, coll_objs in to_check.items():
+            coll_url = self._base_url+"/api/v1/eventPortal/"+coll_name
+            for obj_name, obj in coll_objs.items():
+                print(".", end="", flush=True)
                 url = coll_url+"?name="+obj_name
                 rJson = rest("get", url, token=self.token)
                 if len(rJson["data"]) > 0:
-                    logging.warn("{} '{}' already exists".format(
-                        coll_name.split("/")[-1][:-1], obj_name))
-                    coll_obj[obj_name]["id"] = rJson["data"][0]["id"]
-                else:
-                    print(".", end="", flush=True)
+                    obj["id"] = rJson["data"][0]["id"]
+                    obj["applicationDomainId"] = rJson["data"][0].get("applicationDomainId")
         print()
 
-    def create_all_schemas(self):
-        print(json.dumps(self.Schemas, indent=2))
+    def check_existed_objects(self):
+        to_check = {
+            "applications": self.Applications,
+            "schemas": self.Schemas,
+            "events": self.Events,
+        }
+        # check existed objects
+        isError = False
+        applicationDomainId = self.ApplicationDomains[self.domainName].get("id")
+        for coll_name, coll_objs in to_check.items():
+            for obj_name, obj in coll_objs.items():
+                thisAppDomainId = obj.get("applicationDomainId")
+                if thisAppDomainId and thisAppDomainId != applicationDomainId:
+                    logging.error("{} '{}' already exists with another Application Domain[id:{}]".\
+                        format(coll_name[:-1], obj_name, thisAppDomainId))
+                    isError = True
+        if isError: raise SystemExit
 
-    def create_all_events(self):
-        print(json.dumps(self.Events, indent=2))
+
+    def create_all_objects(self):
+        # 1. create application domain
+        self.create_colls("applicationDomains", self.ApplicationDomains)
+        applicationDomainId = self.ApplicationDomains[self.domainName]["id"]
+
+        # 2. create application
+        self.Applications[self.appName]["payload"]["applicationDomainId"] = applicationDomainId            
+        self.create_colls("applications", self.Applications)
+        applicationId = self.Applications[self.appName]["id"]
+
+        # 3. create all schemas
+        for s, v in self.Schemas.items():
+            if not v.get("id"):
+                v["payload"]["applicationDomainId"] = applicationDomainId
+        self.create_colls("schemas", self.Schemas)
+
+        # 4. create all events
+        for e, v in self.Events.items():
+            if not v.get("id"):
+                event = v["payload"]
+                event["applicationDomainId"] = applicationDomainId
+#                event["consumedApplicationIds"] = [applicationId]
+                if v["schemaName"] in self.Schemas:
+                    event["schemaId"] = self.Schemas[v["schemaName"]]["id"]
+
+        self.create_colls("events", self.Events)
+
+        # 5. update the application to consume all events
+        consumedEventIds = [ v["id"] for e, v in self.Events.items() ]
+        data_json = {"consumedEventIds": consumedEventIds}
+        url = self._base_url+"/api/v1/eventPortal/applications/"+applicationId
+        rJson = rest("patch", url, data_json=data_json, token=self.token)
+        print(json.dumps(rJson, indent=2))
+
+    def create_colls(self, coll_name, coll_objs):
+        coll_url = self._base_url+"/api/v1/eventPortal/"+coll_name
+        for obj_name, obj_value in coll_objs.items():
+            if obj_value.get("id"):
+                logging.warn("{} '{}' already exists".format(coll_name[:-1], obj_name))
+                continue
+            # expected_code=201 Created.
+            # The newly saved object is returned in the response body.
+            rJson = rest("post", coll_url, data_json=obj_value["payload"],\
+                expected_code=201, token=self.token)
+            obj_value["id"] = rJson["data"]["id"]
+            logging.info("{} '{}'[{}] created successfully".\
+                format(coll_name[:-1], obj_name, obj_value["id"]))
