@@ -60,7 +60,7 @@ class EventPortal:
             raise SystemExit
 
         self.generate_ep_objects()
-        self.check_duplicated_objects()
+        self.check_existed_objects()
         self.create_all_objects()
         
 
@@ -132,7 +132,7 @@ class EventPortal:
                     self.dfs_ref_dict(value)
 
 
-    def check_duplicated_objects(self):
+    def check_existed_objects(self):
         to_check = {
             "applicationDomains": self.ApplicationDomains,
             "applications": self.Applications,
@@ -140,7 +140,7 @@ class EventPortal:
             "events": self.Events,
         }
 
-        logging.info("Checking duplicated objects ...")
+        logging.info("Checking existed objects ...")
         for coll_name, coll_objs in to_check.items():
             coll_url = self._base_url+"/api/v1/eventPortal/"+coll_name
             for obj_name, obj in coll_objs.items():
@@ -150,9 +150,10 @@ class EventPortal:
                 if len(rJson["data"]) > 0:
                     obj["id"] = rJson["data"][0]["id"]
                     obj["applicationDomainId"] = rJson["data"][0].get("applicationDomainId")
-        print()
+                    logging.warn("{} '{}' already exists".format(coll_name[:-1].capitalize(), obj_name))
 
-    def check_existed_objects(self):
+        print()
+        
         to_check = {
             "applications": self.Applications,
             "schemas": self.Schemas,
@@ -166,7 +167,7 @@ class EventPortal:
                 thisAppDomainId = obj.get("applicationDomainId")
                 if thisAppDomainId and thisAppDomainId != applicationDomainId:
                     logging.error("{} '{}' already exists with another Application Domain[id:{}]".\
-                        format(coll_name[:-1], obj_name, thisAppDomainId))
+                        format(coll_name[:-1].capitalize(), obj_name, thisAppDomainId))
                     isError = True
         if isError: raise SystemExit
 
@@ -203,13 +204,14 @@ class EventPortal:
         data_json = {"consumedEventIds": consumedEventIds}
         url = self._base_url+"/api/v1/eventPortal/applications/"+applicationId
         rJson = rest("patch", url, data_json=data_json, token=self.token)
-        print(json.dumps(rJson, indent=2))
+        logging.info("Application '{}' subscribes on all events successfully.".\
+            format(self.appName))
+
 
     def create_colls(self, coll_name, coll_objs):
         coll_url = self._base_url+"/api/v1/eventPortal/"+coll_name
         for obj_name, obj_value in coll_objs.items():
             if obj_value.get("id"):
-                logging.warn("{} '{}' already exists".format(coll_name[:-1], obj_name))
                 continue
             # expected_code=201 Created.
             # The newly saved object is returned in the response body.
@@ -217,4 +219,4 @@ class EventPortal:
                 expected_code=201, token=self.token)
             obj_value["id"] = rJson["data"]["id"]
             logging.info("{} '{}'[{}] created successfully".\
-                format(coll_name[:-1], obj_name, obj_value["id"]))
+                format(coll_name[:-1].capitalize(), obj_name, obj_value["id"]))
