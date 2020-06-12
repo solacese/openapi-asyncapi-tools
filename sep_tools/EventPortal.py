@@ -141,35 +141,30 @@ class EventPortal:
         }
 
         logging.info("Checking existed objects ...")
+        isError = False
+        applicationDomainId = None
         for coll_name, coll_objs in to_check.items():
             coll_url = self._base_url+"/api/v1/eventPortal/"+coll_name
             for obj_name, obj in coll_objs.items():
                 print(".", end="", flush=True)
+                thisAppDomainId = None
                 url = coll_url+"?name="+obj_name
                 rJson = rest("get", url, token=self.token)
                 if len(rJson["data"]) > 0:
                     obj["id"] = rJson["data"][0]["id"]
                     obj["applicationDomainId"] = rJson["data"][0].get("applicationDomainId")
-                    logging.warn("{} '{}' already exists".format(coll_name[:-1].capitalize(), obj_name))
+                    if coll_name == "applicationDomains":
+                        applicationDomainId = obj["id"]
+                    elif obj["applicationDomainId"] != applicationDomainId:
+                        logging.error("{} '{}' already exists with another Application Domain[id:{}]".\
+                            format(coll_name[:-1].capitalize(), obj_name, thisAppDomainId))
+                        isError = True
+                    else:
+                        logging.warn("{} '{}' already exists".format(coll_name[:-1].capitalize(), obj_name))
 
         print()
-        
-        to_check = {
-            "applications": self.Applications,
-            "schemas": self.Schemas,
-            "events": self.Events,
-        }
-        # check existed objects
-        isError = False
-        applicationDomainId = self.ApplicationDomains[self.domainName].get("id")
-        for coll_name, coll_objs in to_check.items():
-            for obj_name, obj in coll_objs.items():
-                thisAppDomainId = obj.get("applicationDomainId")
-                if thisAppDomainId and thisAppDomainId != applicationDomainId:
-                    logging.error("{} '{}' already exists with another Application Domain[id:{}]".\
-                        format(coll_name[:-1].capitalize(), obj_name, thisAppDomainId))
-                    isError = True
-        if isError: raise SystemExit
+        if isError: 
+            raise SystemExit
 
 
     def create_all_objects(self):
