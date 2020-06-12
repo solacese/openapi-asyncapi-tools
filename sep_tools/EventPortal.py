@@ -3,6 +3,7 @@ import json
 import re
 
 import yaml
+from .util import *
 
 class EventPortal:
     spec = {}
@@ -15,19 +16,34 @@ class EventPortal:
         'head', 
         'patch', 
         'trace']
-    ApplicationDomain = {}
-    applicationDomainId = None
-    Application = {}
-    applicationId = None
+    ApplicationDomains = {}
+    Applications = {}
     Schemas = {}
-    Events = []
+    Events = {}
     
     _refSchemaRe = re.compile(r'\#\/components\/schemas/([^\/]+)$')
+    _base_url = "https://solace.cloud"
+
+
+    def __init__(self, token):
+        super().__init__()
+        self.token = token
 
     def importOpenAPISpec(self, spec_path, domain, application):
         self.spec_path = spec_path
-        self.domainName = domain
-        self.appName = application
+
+        self.ApplicationDomains[domain]={
+            "payload":{
+                "name": domain,
+            }
+        }
+
+        self.Applications[application]={
+            "payload":{
+                "name": application,
+            }
+        }
+
         
         with open(spec_path) as f:
             text_context = f.read()
@@ -51,7 +67,8 @@ class EventPortal:
         }
 
         self.generate_ep_objects()
-
+        self.check_duplicated_objects()
+        
 
     def generate_ep_objects(self):
         for path, path_item in self.spec["paths"].items():
@@ -62,7 +79,6 @@ class EventPortal:
                 event = {
                     "schemaName": None,
                     "payload": {
-                        "applicationDomainId": "TestApp",
                         "name": operationId,
                         "description": operation.get("description", ""),
                         "topicName": method.upper()+path,
@@ -71,10 +87,8 @@ class EventPortal:
 
                 schemaName = self.extract_schema_from_operation(operation)
                 if schemaName : event["schemaName"]=schemaName
-                self.Events.append(event)
+                self.Events[operationId]=event
         
-        self.create_all_schemas()
-
     def extract_schema_from_operation(self, operation):
         schemaName = None
         content = operation.get("requestBody", {'content':{}}).get("content")
@@ -123,6 +137,28 @@ class EventPortal:
                 else:
                     self.dfs_ref_dict(value)
 
+
+    def check_duplicated_objects(self):
+        to_check = {
+            "/api/v1/eventPortal/applicationDomains": self.ApplicationDomains,
+            "/api/v1/eventPortal/applications": self.Applications,
+            "/api/v1/eventPortal/schemas": self.Schemas,
+            "/api/v1/eventPortal/events": self.Events,
+        }
+
+        logging.info("Checking duplicated objects ...")
+        for coll_name, coll_obj in to_check.items():
+            coll_url = self._base_url+coll_name
+            for obj_name in coll_obj.keys():
+                url = coll_url+"?name="+obj_name
+                rJson = rest("get", url, token=self.token)
+                if len(rJson["data"]) > 0:
+                    logging.warn("{} '{}' already exists".format(
+                        coll_name.split("/")[-1][:-1], obj_name))
+                    coll_obj[obj_name]["id"] = rJson["data"][0]["id"]
+                else:
+                    print(".", end="", flush=True)
+        print()
 
     def create_all_schemas(self):
         print(json.dumps(self.Schemas, indent=2))

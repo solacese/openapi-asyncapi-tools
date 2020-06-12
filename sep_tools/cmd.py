@@ -11,11 +11,13 @@ logging.basicConfig(level=logging.INFO)
     help='Application Domain')
 @click.option('--application', default="TestApp", show_default=True,
     help='Application')
-def cmdImportOpenAPI(open_api_spec_file, domain, application):
+@click.option('--token', envvar='EVENT_PORTAL_TOKEN', required=True,
+    help="The API token of Solace's Cloud REST API, could be set with env variable [EVENT_PORTAL_TOKEN]")
+def cmdImportOpenAPI(open_api_spec_file, domain, application, token):
     logging.info("Import file '{}' to build Application '{}' within Domain '{}'".format(
-        open_api_spec_file, domain, application
+        open_api_spec_file, application, domain
     ))
-    ep = EventPortal()
+    ep = EventPortal(token)
     ep.importOpenAPISpec(open_api_spec_file, domain, application)
 
 if __name__ == '__main__':
