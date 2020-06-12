@@ -72,9 +72,8 @@ class EventPortal:
                 schemaName = self.extract_schema_from_operation(operation)
                 if schemaName : event["schemaName"]=schemaName
                 self.Events.append(event)
-
-        print(json.dumps(self.Schemas, indent=2))
-        print(json.dumps(self.Events, indent=2))
+        
+        self.create_all_schemas()
 
     def extract_schema_from_operation(self, operation):
         schemaName = None
@@ -84,14 +83,14 @@ class EventPortal:
             # only extract the first matched json schema
             schema = content.get(jsonkeys[0]).get("schema")
             if schema.get("$ref"):
-                # Reference Object
+                # Reference Object like #/components/schemas/CouponRequest
                 schemaName = self._refSchemaRe.search(schema.get("$ref")).group(1)
                 if not self.Schemas.get(schemaName): 
                     self.Schemas[schemaName]={
                         "id": None,
                         "payload": {
                             "contentType": "JSON",
-                            "content": json.dumps(schema),
+                            "content": json.dumps(self.get_component_schema(schemaName)),
                             "name": schemaName,
                         }
                     }
@@ -107,3 +106,26 @@ class EventPortal:
                     }
                 }
         return schemaName
+
+    def get_component_schema(self, schemaName):
+        payload = self.spec["components"]["schemas"][schemaName]
+        self.dfs_ref_dict(payload)
+
+        return payload
+
+    def dfs_ref_dict(self, payload):
+        for key, value in payload.items():
+            if type(value) is dict:
+                if value.get("$ref"):
+                    # Reference Object
+                    schemaName = self._refSchemaRe.search(value.get("$ref")).group(1)
+                    payload[key] = self.get_component_schema(schemaName)
+                else:
+                    self.dfs_ref_dict(value)
+
+
+    def create_all_schemas(self):
+        print(json.dumps(self.Schemas, indent=2))
+
+    def create_all_events(self):
+        print(json.dumps(self.Events, indent=2))
