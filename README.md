@@ -15,7 +15,7 @@ $ pip install .
 You MUST [Obtain an API token from Solace Cloud](https://docs.solace.com/Solace-Cloud/ght_use_rest_api_client_profiles.htm) using your account before launching this tool.
 
 ```bash
-$ importOpenAPI --help
+$ sep importOpenAPI --help
 Usage: importOpenAPI [OPTIONS] OPEN_API_SPEC_FILE
 
 Options:

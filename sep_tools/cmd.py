@@ -5,7 +5,12 @@ from .EventPortal import EventPortal
 
 logging.basicConfig(level=logging.INFO)
 
-@click.command(name="importOpenAPI")
+@click.group()
+@click.version_option()
+def cli():
+    pass
+
+@cli.command(name="importOpenAPI")
 @click.argument('open_api_spec_file', type=click.Path(exists=True))
 @click.option('--domain', default="TestDomain", show_default=True, 
     help='Application Domain')

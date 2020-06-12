@@ -5,7 +5,7 @@ with open('README.md') as f:
 
 setup(
     name='sep-tools',
-    version='0.1.0',
+    version='0.0.1',
     description='',
     long_description=readme,
     author='Solace SE',
@@ -18,7 +18,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "importOpenAPI=sep_tools.cmd:cmdImportOpenAPI",
+            "sep=sep_tools.cmd:cli",
         ]
     },
 )
