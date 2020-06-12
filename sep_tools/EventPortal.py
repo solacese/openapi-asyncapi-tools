@@ -2,7 +2,7 @@ import logging
 import json
 import re
 
-from ruamel.yaml import YAML
+import yaml
 
 class EventPortal:
     spec = {}
@@ -31,7 +31,7 @@ class EventPortal:
         
         with open(spec_path) as f:
             text_context = f.read()
-            self.spec = YAML().load(text_context)
+            self.spec = yaml.load(text_context)
 
         version = self.spec.get("openapi")
         if not version:

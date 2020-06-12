@@ -13,7 +13,7 @@ setup(
     packages=find_packages(exclude=('tests', 'docs')),
     install_requires=[
         'click',
-        'ruamel.yaml'
+        'PyYAML',
     ],
     entry_points={
         "console_scripts": [
