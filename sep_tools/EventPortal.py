@@ -215,3 +215,24 @@ class EventPortal:
             obj_value["id"] = rJson["data"]["id"]
             logging.info("{} '{}'[{}] created successfully".\
                 format(coll_name[:-1].capitalize(), obj_name, obj_value["id"]))
+
+# --------------------------- generate AsyncApi ---------------------------
+
+    def generateAsyncApi(self, applicationName):
+        # 1. get application id by name
+        appByName_url = self._base_url+\
+            "/api/v1/eventPortal/applications"+\
+            "?name="+applicationName
+        rJson = rest("get", appByName_url, token=self.token)
+        if len(rJson["data"]) == 0:
+            logging.error("Could not find Application '{}'!".format(applicationName))
+        app_id = rJson["data"][0]["id"]
+        gen_url = self._base_url+\
+            "/api/v1/eventPortal/applications/{}/generateAsyncApiRequest".format(app_id)
+        request = {
+            "asyncApiVersion": "2.0.0",
+        }
+        rJson = rest("post", gen_url, request, token=self.token)
+        print(json.dumps(rJson,indent=2))
+
+        # 2. generate AsyncApi

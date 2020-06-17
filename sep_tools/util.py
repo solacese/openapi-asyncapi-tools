@@ -9,9 +9,9 @@ def rest(verb, url, data_json=None, expected_code=200, token=None):
     r = getattr(requests, verb)(url, headers=headers,
         data=(str_json))
     if (r.status_code != expected_code):
-        print("{} on {} returns {}".format(verb.upper(), url, r.status_code))
+        logging.error("{} on {} returns {}".format(verb.upper(), url, r.status_code))
         if data_json: print(json.dumps(data_json, indent=2))
         print(r.text)
-        raise RuntimeError
+        raise SystemExit
 
     return r.json()
