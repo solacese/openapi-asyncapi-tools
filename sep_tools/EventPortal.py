@@ -7,15 +7,6 @@ from .util import *
 
 class EventPortal:
     spec = {}
-    http_methods = [
-        'get', 
-        'put', 
-        'post', 
-        'delete', 
-        'options', 
-        'head', 
-        'patch', 
-        'trace']
     ApplicationDomains = {}
     Applications = {}
     Schemas = {}
@@ -66,7 +57,7 @@ class EventPortal:
 
     def generate_ep_objects(self):
         for path, path_item in self.spec["paths"].items():
-            for method in self.http_methods:
+            for method in HTTP_METHODS:
                 if method not in path_item: continue
                 operation = path_item.get(method)
                 operationId = operation.get("operationId")
@@ -79,11 +70,11 @@ class EventPortal:
                     }
                 }
 
-                schemaName = self.extract_schema_from_operation(operation)
+                schemaName = self._extract_schema_from_operation(operation)
                 if schemaName : event["schemaName"]=schemaName
                 self.Events[operationId]=event
         
-    def extract_schema_from_operation(self, operation):
+    def _extract_schema_from_operation(self, operation):
         schemaName = None
         content = operation.get("requestBody", {'content':{}}).get("content")
         jsonkeys = [k for k in content.keys() if k.startswith("application/json")]
@@ -98,7 +89,7 @@ class EventPortal:
                         "id": None,
                         "payload": {
                             "contentType": "JSON",
-                            "content": json.dumps(self.get_component_schema(schemaName)),
+                            "content": json.dumps(self._get_component_schema(schemaName)),
                             "name": schemaName,
                         }
                     }
@@ -115,21 +106,23 @@ class EventPortal:
                 }
         return schemaName
 
-    def get_component_schema(self, schemaName):
+    def _get_component_schema(self, schemaName):
         payload = self.spec["components"]["schemas"][schemaName]
-        self.dfs_ref_dict(payload)
+        self._dfs_ref_dict(payload)
 
         return payload
 
-    def dfs_ref_dict(self, payload):
+    def _dfs_ref_dict(self, payload):
+        # Go through all reference object to combine an integrated schema
+        # since Event Portal doesn't support reference insice schema
         for key, value in payload.items():
             if type(value) is dict:
                 if value.get("$ref"):
                     # Reference Object
                     schemaName = self._refSchemaRe.search(value.get("$ref")).group(1)
-                    payload[key] = self.get_component_schema(schemaName)
+                    payload[key] = self._get_component_schema(schemaName)
                 else:
-                    self.dfs_ref_dict(value)
+                    self._dfs_ref_dict(value)
 
 
     def check_existed_objects(self):
@@ -169,19 +162,19 @@ class EventPortal:
 
     def create_all_objects(self):
         # 1. create application domain
-        self.create_colls("applicationDomains", self.ApplicationDomains)
+        self._create_colls("applicationDomains", self.ApplicationDomains)
         applicationDomainId = self.ApplicationDomains[self.domainName]["id"]
 
         # 2. create application
         self.Applications[self.appName]["payload"]["applicationDomainId"] = applicationDomainId            
-        self.create_colls("applications", self.Applications)
+        self._create_colls("applications", self.Applications)
         applicationId = self.Applications[self.appName]["id"]
 
         # 3. create all schemas
         for s, v in self.Schemas.items():
             if not v.get("id"):
                 v["payload"]["applicationDomainId"] = applicationDomainId
-        self.create_colls("schemas", self.Schemas)
+        self._create_colls("schemas", self.Schemas)
 
         # 4. create all events
         for e, v in self.Events.items():
@@ -192,7 +185,7 @@ class EventPortal:
                 if v["schemaName"] in self.Schemas:
                     event["schemaId"] = self.Schemas[v["schemaName"]]["id"]
 
-        self.create_colls("events", self.Events)
+        self._create_colls("events", self.Events)
 
         # 5. update the application to consume all events
         consumedEventIds = [ v["id"] for e, v in self.Events.items() ]
@@ -203,10 +196,12 @@ class EventPortal:
             format(self.appName))
 
 
-    def create_colls(self, coll_name, coll_objs):
+    def _create_colls(self, coll_name, coll_objs):
+        # create objects of the same type
         coll_url = self._base_url+"/api/v1/eventPortal/"+coll_name
         for obj_name, obj_value in coll_objs.items():
             if obj_value.get("id"):
+                # means this object has been existed
                 continue
             # expected_code=201 Created.
             # The newly saved object is returned in the response body.
@@ -218,15 +213,14 @@ class EventPortal:
 
 # --------------------------- generate AsyncApi ---------------------------
 
-    def generateAsyncApi(self, applicationName):
+    def generateAsyncApi(self, application_name):
         # 1. get application id by name
-        appByName_url = self._base_url+\
-            "/api/v1/eventPortal/applications"+\
-            "?name="+applicationName
-        rJson = rest("get", appByName_url, token=self.token)
-        if len(rJson["data"]) == 0:
-            logging.error("Could not find Application '{}'!".format(applicationName))
-        app_id = rJson["data"][0]["id"]
+        app_id = self._getObjectIdByName("applications", application_name)
+        if not app_id:
+            logging.error("Could not find Application '{}'!".format(application_name))
+            raise SystemExit
+
+        # 2. generate AsyncApi
         gen_url = self._base_url+\
             "/api/v1/eventPortal/applications/{}/generateAsyncApiRequest".format(app_id)
         request = {
@@ -235,4 +229,70 @@ class EventPortal:
         rJson = rest("post", gen_url, request, token=self.token)
         print(json.dumps(rJson,indent=2))
 
-        # 2. generate AsyncApi
+
+# --------------------------- generate OpenApi ---------------------------
+
+    def generateOpenApi(self, domain_name):
+        # 1. get the domain id by name
+        domain_obj = self._getObjectByName("applicationDomains", domain_name)        
+        if not domain_obj:
+            logging.error("Could not find Application Domain '{}'!".format(domain_name))
+            raise SystemExit
+        else:
+            domain_id = domain_obj["id"]
+        
+        # 2. get all events in the given application domain
+        query_dict = {"applicationDomainId": domain_id}
+        event_list = self._getAllObjects("events", query_dict)
+
+        # 3. filter external events
+        event_list = [e for e in event_list if \
+            len(e["consumedApplicationIds"])>0]
+#            len(e["producedApplicationIds"])==0 and len(e["consumedApplicationIds"])>0]
+
+        # 4. get all related schemas
+        schema_IDs = set([e["schemaId"] for e in event_list if e["schemaId"]])
+        query_dict = {
+            "ids": ",".join(list(schema_IDs)),
+        }
+        schema_list = self._getAllObjects("schemas", query_dict)
+
+        # 5. generate openapi spec
+        generateOpenAPISpec(domain_name, domain_obj["description"], event_list, schema_list)
+
+
+# --------------------------- helper methods ---------------------------
+
+    def _getObjectByName(self, coll, name):
+        coll_url = "{}/api/v1/eventPortal/{}?name={}".format(
+            self._base_url, coll, name
+        )
+        rJson = rest("get", coll_url, token=self.token)
+        if len(rJson["data"]) == 0:
+            return None
+        else:
+            return rJson["data"][0]
+
+    def _getObjectIdByName(self, coll, name):
+        obj = self._getObjectByName(coll, name)
+        return obj["id"] if obj else None
+
+    def _getAllObjects(self, coll, query_dict):
+        params = {
+            "pageSize": 100,
+            "pageNumber": 1
+        }
+        params.update(query_dict)
+
+        data_list = []
+        while params["pageNumber"]:
+            get_url = "{}/api/v1/eventPortal/{}".format(
+                self._base_url, coll
+            )
+            rJson = rest("get", get_url, params=params, token=self.token)
+            data_list.extend(rJson['data'])
+
+            pagination = safeget(rJson, "meta", "pagination")
+            params["pageNumber"]=pagination["nextPage"]
+        
+        return data_list
