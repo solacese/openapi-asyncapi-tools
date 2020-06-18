@@ -15,16 +15,17 @@ $ pip install .
 You MUST [Obtain an API token from Solace Cloud](https://docs.solace.com/Solace-Cloud/ght_use_rest_api_client_profiles.htm) using your account before launching this tool.
 
 ```bash
-$ sep importOpenAPI --help
-Usage: importOpenAPI [OPTIONS] OPEN_API_SPEC_FILE
+$ sep
+Usage: sep [OPTIONS] COMMAND [ARGS]...
 
 Options:
-  --domain TEXT       Application Domain  [default: TestDomain]
-  --application TEXT  Application  [default: TestApp]
-  --token TEXT        The API token of Solace's Cloud REST API, could be set
-                      with env variable [EVENT_PORTAL_TOKEN]  [required]
+  --version  Show the version and exit.
+  --help     Show this message and exit.
 
-  --help              Show this message and exit.
+Commands:
+  generateAsyncAPI  Generate an AsyncAPI spec for the specified Application
+  generateOpenAPI   Generate a OpenAPI spec for the specified Domain that...
+  importOpenAPI     Generate an Application based on the specified OpenAPI...
 ```
 
 ## Known Issues
