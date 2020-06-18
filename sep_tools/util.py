@@ -41,7 +41,7 @@ def generateOpenAPISpec(app_name, description, event_list, schema_list):
         "openapi": "3.0.0",
         "info": {
             "title": app_name,
-            "description": description,
+            "description": description if description else "",
             "version": "1.0.0"
         },
         "components": {
@@ -54,13 +54,14 @@ def generateOpenAPISpec(app_name, description, event_list, schema_list):
     schemas = spec["components"]["schemas"]
     for es in schema_list:
         if es["contentType"]=="JSON" and es["content"]:
-            # only support JSON schema
+            # only support JSON schema ("JSON","XML","Text","Binary")
             schemas[es["name"]] = json.loads(es["content"])
 
     # 3. generate all path
     for e in event_list:
         path = e["topicName"]
         http_method = path.split("/")[0].lower()
+        logging.info("{}, {}".format(path, http_method))
         if http_method in HTTP_METHODS:
             # This is a event topic generated from REST url
             path = path[len(http_method):]
@@ -69,30 +70,40 @@ def generateOpenAPISpec(app_name, description, event_list, schema_list):
             http_method = "post"
             path = "/"+path
         
-        if path not in spec["paths"]: spec["paths"][path] = {}
-        pathItem = spec["paths"][path]
-
         operation = {
             "operationId": e["name"],
             "description": e["description"],
             # TODO: responses is required for operation object of Open API
             # but event of Event Portal do not have such information
-            "responses":{},
-        }
-
-        if e["schemaId"] != None:
-            ep_schema = [s for s in schema_list if s["id"]==e["schemaId"]][0]
-            if safeget(spec, "components", "schemas", ep_schema["name"]):
-                operation["requestBody"] = {
+            "responses":{
+                "200": {
+                    "description": "OK",
                     "content": {
                         "application/json": {
                             "schema": {
-                                "$ref": "#/components/schemas/"+ep_schema["name"]
+                                "type": "string"
                             }
                         }
                     }
                 }
-                pathItem[http_method] = operation
+            }
+        }
+        if path not in spec["paths"]: spec["paths"][path] = {}
+        spec["paths"][path][http_method] = operation
+
+        if e["schemaId"] == None: continue # no related schema, therefore no request body
+        ep_schema = [s for s in schema_list if s["id"]==e["schemaId"]][0]
+        if not safeget(spec, "components", "schemas", ep_schema["name"]): continue
+        operation["requestBody"] = {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/"+ep_schema["name"]
+                    }
+                }
+            }
+        }
+
 
     # 4. output the spec
     print(json.dumps(spec, indent=2))
