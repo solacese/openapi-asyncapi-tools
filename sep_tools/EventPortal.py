@@ -140,7 +140,6 @@ class EventPortal:
             coll_url = self._base_url+"/api/v1/eventPortal/"+coll_name
             for obj_name, obj in coll_objs.items():
                 print(".", end="", flush=True)
-                thisAppDomainId = None
                 url = coll_url+"?name="+obj_name
                 rJson = rest("get", url, token=self.token)
                 if len(rJson["data"]) > 0:
@@ -150,7 +149,7 @@ class EventPortal:
                         applicationDomainId = obj["id"]
                     elif obj["applicationDomainId"] != applicationDomainId:
                         logging.error("{} '{}' already exists with another Application Domain[id:{}]".\
-                            format(coll_name[:-1].capitalize(), obj_name, thisAppDomainId))
+                            format(coll_name[:-1].capitalize(), obj_name, obj["applicationDomainId"]))
                         isError = True
                     else:
                         logging.warn("{} '{}' already exists".format(coll_name[:-1].capitalize(), obj_name))
