@@ -4,7 +4,7 @@ Tooling to assist with exchange of information between API Portal and Event Port
 
 ## Installation
 
-Clone this repo then install the package locally with:
+Install Python 3.x first, then clone this repo then install the package locally with:
 
 ```bash
 $ pip install .

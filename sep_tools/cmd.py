@@ -15,17 +15,20 @@ def cli():
 @click.argument('open_api_spec_file', type=click.Path(exists=True))
 @click.option('--domain', default="TestDomain", show_default=True, 
     help='Application Domain')
+@click.option('--pub', default=False, show_default=True, is_flag=True,
+    help='Publish all related events insted of subscribe on them')
 @click.option('--application', default="TestApp", show_default=True,
     help='Application')
 @click.option('--token', envvar='EVENT_PORTAL_TOKEN', required=True,
     help="The API token of Solace's Cloud REST API, could be set with env variable [EVENT_PORTAL_TOKEN]")
-def cmdImportOpenAPI(open_api_spec_file, domain, application, token):
-    """Generate an Application based on the specified OpenAPI 3.0 specification"""
+def cmdImportOpenAPI(open_api_spec_file, domain, pub, application, token):
+    """Generate an Application based on the specified OpenAPI 3.0 specification by
+    subscribing on all related events"""
 
     logging.info("Import file '{}' to build Application '{}' within Domain '{}'".format(
         open_api_spec_file, application, domain
     ))
-    ep = EventPortal(token)
+    ep = EventPortal(token, pub)
     ep.importOpenAPISpec(open_api_spec_file, domain, application)
 
 # -------------------------- generateAsyncAPI --------------------------

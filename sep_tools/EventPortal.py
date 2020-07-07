@@ -16,9 +16,10 @@ class EventPortal:
     _base_url = "https://solace.cloud"
 
 
-    def __init__(self, token):
+    def __init__(self, token, pubFlag=False):
         super().__init__()
         self.token = token
+        self.pubFlag = pubFlag
 
     def importOpenAPISpec(self, spec_path, domain, application):
         self.spec_path = spec_path
@@ -186,13 +187,14 @@ class EventPortal:
 
         self._create_colls("events", self.Events)
 
-        # 5. update the application to consume all events
-        consumedEventIds = [ v["id"] for e, v in self.Events.items() ]
-        data_json = {"consumedEventIds": consumedEventIds}
+        # 5. update the application to consume or publish all events
+        eventIds = [ v["id"] for e, v in self.Events.items() ]
+        data_json = { "producedEventIds" if self.pubFlag else "consumedEventIds": eventIds}
+        
         url = self._base_url+"/api/v1/eventPortal/applications/"+applicationId
         rJson = rest("patch", url, data_json=data_json, token=self.token)
-        logging.info("Application '{}' subscribes on all events successfully.".\
-            format(self.appName))
+        logging.info("Events {} setting of Application '{}' on all events successfully.".\
+            format('Published' if self.pubFlag else 'Subscribed', self.appName))
 
 
     def _create_colls(self, coll_name, coll_objs):
