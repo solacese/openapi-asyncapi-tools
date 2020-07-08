@@ -23,9 +23,13 @@ Options:
   --help     Show this message and exit.
 
 Commands:
+  createQueue       Generate a queue based on the specified OpenAPI 3.0...
   generateAsyncAPI  Generate an AsyncAPI spec for the specified Application
   generateOpenAPI   Generate a OpenAPI spec for the specified Domain that...
   importOpenAPI     Generate an Application based on the specified OpenAPI...
+
+$ sep --version
+sep, version 0.0.4
 ```
 
 ## Known Issues
