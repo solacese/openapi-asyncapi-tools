@@ -31,6 +31,35 @@ def cmdImportOpenAPI(open_api_spec_file, domain, pub, application, token):
     ep = EventPortal(token, pub)
     ep.importOpenAPISpec(open_api_spec_file, domain, application)
 
+# -------------------------- importOpenAPI --------------------------
+@cli.command(name="createQueue")
+@click.argument('open_api_spec_file', type=click.Path(exists=True))
+@click.option('--admin-user', default='admin', show_default=True,
+    help='The username of the management user')
+@click.option('--admin-password', default='admin', show_default=True,
+    envvar='SOL_ADMIN_PWD', help='The password of the management user, could be set by env variable [SOL_ADMIN_PWD]')
+@click.option('--host', default='http://localhost:8080', show_default=True,
+    help='URL to access the management endpoint of the broker')
+@click.option('--vpn', default='default', show_default=True,
+    help='The name of the message vpn')
+@click.option('--queue', required=True,
+    help='The name of the queue to create')
+def createQueue(open_api_spec_file, admin_user, admin_password, host, vpn, queue):
+    """Generate a queue based on the specified OpenAPI 3.0 specification by
+    subscribing on all related events"""
+
+    if host[-1]=='/':
+        host=host[:-1]
+
+    logging.info("Import file '{}' to build a queue '{}' on the broker '{}'".format(
+        open_api_spec_file, queue, host))
+    ep = EventPortal(admin_user=admin_user,
+        admin_password=admin_password,
+        host=host,
+        vpn=vpn,
+        queueName=queue,)
+    ep.createQueue(open_api_spec_file)
+
 # -------------------------- generateAsyncAPI --------------------------
 @cli.command(name="generateAsyncAPI")
 @click.argument('application')

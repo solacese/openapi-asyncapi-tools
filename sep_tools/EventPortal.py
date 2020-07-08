@@ -16,10 +16,21 @@ class EventPortal:
     _base_url = "https://solace.cloud"
 
 
-    def __init__(self, token, pubFlag=False):
+    def __init__(self, token="", pubFlag=False, 
+        admin_user="default", 
+        admin_password="default", 
+        host="", 
+        vpn="default",
+        queueName = "api_queue"):
+
         super().__init__()
         self.token = token
         self.pubFlag = pubFlag
+        self.admin_user = admin_user
+        self.admin_password = admin_password
+        self.host = host
+        self.vpn = vpn
+        self.queueName = queueName
 
     def importOpenAPISpec(self, spec_path, domain, application):
         self.spec_path = spec_path
@@ -211,6 +222,55 @@ class EventPortal:
             obj_value["id"] = rJson["data"]["id"]
             logging.info("{} '{}'[{}] created successfully".\
                 format(coll_name[:-1].capitalize(), obj_name, obj_value["id"]))
+
+# --------------------------- generate Queue ---------------------------
+    def createQueue(self, spec_path):
+        """Generate a queue based on the specified OpenAPI 3.0 specification by
+        subscribing on all related events"""
+        self.spec_path = spec_path
+        
+        with open(spec_path) as f:
+            text_context = f.read()
+            self.spec = yaml.safe_load(text_context)
+
+        version = self.spec.get("openapi")
+        if not version:
+            logging.error("There is no 'openapi' filed in {}".format(spec_path))
+            raise SystemExit
+
+        if int(version.split(".")[0]) < 3:
+            logging.error("The open api version of '{}' is {}, must be 3.x.".format(spec_path, version))
+            raise SystemExit
+
+        self.generate_ep_objects()
+        self.__create_queue()
+        self.__subscribe_on_events()
+
+    def __create_queue(self):
+        url = "{}/SEMP/v2/config/msgVpns/{}/queues".format(self.host, self.vpn)
+        queue =  {
+            "egressEnabled": True,
+            "ingressEnabled": True,
+            "permission": "consume",
+            "queueName": self.queueName,
+        }
+
+        sempv2("post", url, self.admin_user, self.admin_password, queue)
+        logging.info("Queue '{}' created successfully".format(self.queueName))
+
+        pass
+
+    def __subscribe_on_events(self):
+        url = "{}/SEMP/v2/config/msgVpns/{}/queues/{}/subscriptions".\
+            format(self.host, self.vpn, self.queueName)
+
+        para = re.compile("{[^}]+}")
+        for e, v in self.Events.items():
+            topic = para.sub("*", v["payload"]["topicName"])
+            sub = {"subscriptionTopic":topic}
+            sempv2("post", url, self.admin_user, self.admin_password, sub)
+            logging.info("Queue '{}' subscribed on '{}' successfully".\
+                format(self.queueName, topic))
 
 # --------------------------- generate AsyncApi ---------------------------
 

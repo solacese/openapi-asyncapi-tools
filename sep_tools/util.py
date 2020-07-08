@@ -26,6 +26,20 @@ def rest(verb, url, data_json=None, expected_code=200, params=None, token=None):
 
     return r.json()
 
+def sempv2(verb, url, admin_user, admin_password, data_json=None):
+    headers={"content-type": "application/json"}
+    str_json = json.dumps(data_json,indent=2) if data_json != None else None
+    r = getattr(requests, verb)(url, headers=headers,
+        auth=(admin_user, admin_password),
+        data=(str_json))
+    if r.status_code != 200:
+        print("{} on {} returns {}".format(verb.upper(), url, r.status_code))
+        if str_json: print(str_json)
+        print(r.text)
+        raise RuntimeError
+    else:
+        return r.json()
+
 def safeget(dct, *keys):
     for key in keys:
         try:
